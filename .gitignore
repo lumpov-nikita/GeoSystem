@@ -1,2 +1,6 @@
 
 FrontEnd/token.txt
+FrontEnd/node_modules
+FrontEnd/.expo
+FrontEnd/package-lock.json
+FrontEnd/yarn.lock
