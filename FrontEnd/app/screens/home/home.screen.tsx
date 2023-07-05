@@ -1,18 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { YMaps, Map, Placemark, Circle } from '@pbe/react-yandex-maps';
+import React, { useState } from 'react';
+import { YMaps, Map, Polygon } from '@pbe/react-yandex-maps';
 import { SafeAreaView, View, Modal, TouchableOpacity, Text } from 'react-native';
 import { Title } from 'react-native-paper';
 import { homeStyle } from './home.style';
-import blue from '../../files/blue.png';
-import red from '../../files/red.png';
-import ymaps from 'ymaps';
 
+const hexagonCoordinates = (center, radius) => {
+  const angle_deg = 15;
+  const angle_rad = Math.PI / 180 * angle_deg;
+  const coords = [];
+  
+  for (let i = 0; i < 24; i++) {
+    const x = center[0] + radius * Math.cos(angle_rad * i);
+    const y = center[1] + radius * Math.sin(angle_rad * i);
+    coords.push([x, y]);
+  }
+
+  return coords;
+}
 
 const HomeScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalVideoVisible, setModalVideoVisible] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState({});
-  const [circles, setCircles] = useState([]);
+  const [zoom, setZoom] = useState(10);
 
   const handlePlacemarkClick = (e, name) => {
     e.preventDefault();
@@ -32,75 +42,77 @@ const HomeScreen = () => {
     setModalVideoVisible(true);
   };
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      const newCircles = circles.map(circle => {
-        const newRadius = circle.properties.get('radius') + 500;
-        if (newRadius > 1000) {  // ограничение радиуса
-          return null;
-        }
-        return new ymaps.Circle([
-          circle.geometry.getCoordinates(), 
-          newRadius
-        ], {}, {
-          fillColor: '#ff000066',
-          strokeOpacity: 0,
-        });
-      }).filter(circle => circle !== null);
-      setCircles(newCircles);
-    }, 1000);  // интервал обновления волн
-
-    return () => clearInterval(intervalId);
-  }, [circles]);
-
-  const circleElements = circles.map((circle, index) => (
-    <Circle key={index} geometry={circle.geometry} properties={circle.properties} />
-  ));
+  const handleZoomChange = (e) => {
+    setZoom(20 - e.get('newZoom'));
+  };
 
   const points = [
-    { coordinates: [54.738276, 20.489808], name: "Point A", icon: blue},
-    { coordinates: [54.753289, 20.516721], name: "Point B", icon: red },
-    { coordinates: [54.726419, 20.502906], name: "Point C", icon: red },
-    { coordinates: [54.743931, 20.458915], name: "Point D", icon: blue },
-    { coordinates: [54.709743, 20.500256], name: "Point E", icon: blue }
+    { coordinates: [54.738276, 20.489808], name: "Point A", color: "#0000FF"},
+    { coordinates: [54.753289, 20.516721], name: "Point B", color: "#ff0000" },
+    { coordinates: [54.726419, 20.502906], name: "Point C", color: "#ff0000" },
+    { coordinates: [54.743931, 20.458915], name: "Point D", color: "#0000FF" },
+    { coordinates: [54.709743, 20.500256], name: "Point E", color: "#0000FF" }
   ];
-  
-  const placemarks = points.map(({coordinates, name, icon}, index) => (
-    <Placemark
-      key={index}
-      geometry={coordinates}
-      properties={{ 
-        balloonContent: name,
-      }}
-      options={{
-        preset: 'islands#icon',
-        iconLayout: 'default#image',
-        iconImageHref: icon,
-        iconImageSize: [20, 20]
-      }}
-    
-      onClick={(e) => handlePlacemarkClick(e, name)}
-    />
-  ));  
 
-  return (
+  const hexagonsPoints = points.map(({coordinates, name}, index) => {
+    const radius = 0.01 * Math.pow(2, zoom - 10);
+    const hexagon = hexagonCoordinates(coordinates, radius);
+    return (
+      <Polygon 
+        key={index}
+        geometry={{
+          type: 'Polygon',
+          coordinates: [hexagon]
+        }}
+        options={{
+          fillColor: '#ff0000',
+          strokeColor: '#000000',
+          strokeWidth: 2,
+          strokeOpacity: 0.8
+        }}
+        onClick={(e) => handlePlacemarkClick(e, name)}
+      />
+    );
+  });
+
+  const hexagons = points.map(({coordinates}, index) => {
+    const hexagon = hexagonCoordinates(coordinates, 0.01);
+    return (
+      <Polygon 
+        key={index}
+        geometry={{
+          type: 'Polygon',
+          coordinates: [hexagon]
+        }}
+        options={{fillColor: '#ff0000',
+        fillOpacity: 0.5
+        }}
+      />
+    );
+  });
+
+return (
     <SafeAreaView style={homeStyle.page}>
       <Title>Map</Title>
       <YMaps 
         enterprise
         query={{
+          lang: 'ru_RU',
           load: "package.full", 
           apikey: "af7c0f53-a625-45b6-9e95-fd90a65132des"
         }}>
         <Map
           style={homeStyle.container}
-          defaultState={{ center: [54.738276, 20.489808], zoom: 11 }}
+          defaultState={{ center: [54.738276, 20.489808], zoom: 10 }}
+          onBoundsChange={handleZoomChange}
+          onZoomChange={handleZoomChange}
           options={{
             suppressMapOpenBlock: true,
           }}
+          modules={['geoObject.addon.balloon']}
         >
-          {placemarks}
-          {circleElements}
+          {hexagons}
+          {hexagonsPoints}
         </Map>
       </YMaps>
       <Modal

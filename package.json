@@ -1,0 +1,19 @@
+{
+  "name": "geosystem",
+  "version": "1.0.0",
+  "description": "Скачать и установить Node JS                           https://nodejs.org/en В Visual Studio Code открыть проект В терминале перейти в папку FrontEnd             - ввести в терминале cd FrontEnd Установить модули приложения                        - ввести в терминале npm Install Запустить проект.                                                - ввести в терминале npm start Выбрать веб приложение                                   - ввести в терминале w",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lumpov-nikita/GeoSystem.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lumpov-nikita/GeoSystem/issues"
+  },
+  "homepage": "https://github.com/lumpov-nikita/GeoSystem#readme"
+}
