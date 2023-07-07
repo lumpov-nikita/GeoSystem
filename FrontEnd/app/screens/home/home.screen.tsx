@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { YMaps, Map, Polygon } from '@pbe/react-yandex-maps';
+import { YMaps, Map, Polygon, Polyline } from '@pbe/react-yandex-maps';
 import { SafeAreaView, View, Modal, TouchableOpacity, Text } from 'react-native';
 import { Title } from 'react-native-paper';
 import { homeStyle } from './home.style';
@@ -16,6 +16,15 @@ const hexagonCoordinates = (center, radius) => {
   }
 
   return coords;
+}
+
+const squareCoordinates = (center, radius) => {
+  const topLeft = [center[0] - radius, center[1] + radius];
+  const topRight = [center[0] + radius, center[1] + radius];
+  const bottomRight = [center[0] + radius, center[1] - radius];
+  const bottomLeft = [center[0] - radius, center[1] - radius];
+  
+  return [topLeft, topRight, bottomRight, bottomLeft];
 }
 
 const HomeScreen = () => {
@@ -54,18 +63,20 @@ const HomeScreen = () => {
     { coordinates: [54.709743, 20.500256], name: "Point E", color: "#0000FF" }
   ];
 
-  const hexagonsPoints = points.map(({coordinates, name}, index) => {
+  const polylineCoordinates = points.map(point => point.coordinates);
+
+  const squares = points.map(({coordinates, color}, index) => {
     const radius = 0.01 * Math.pow(2, zoom - 10);
-    const hexagon = hexagonCoordinates(coordinates, radius);
+    const square = squareCoordinates(coordinates, radius);
     return (
       <Polygon 
         key={index}
         geometry={{
           type: 'Polygon',
-          coordinates: [hexagon]
+          coordinates: [square]
         }}
         options={{
-          fillColor: '#ff0000',
+          fillColor: color,
           strokeColor: '#000000',
           strokeWidth: 2,
           strokeOpacity: 0.8
@@ -75,7 +86,8 @@ const HomeScreen = () => {
     );
   });
 
-  const hexagons = points.map(({coordinates}, index) => {
+
+  const hexagons = points.map(({coordinates, color}, index) => {
     const hexagon = hexagonCoordinates(coordinates, 0.01);
     return (
       <Polygon 
@@ -84,13 +96,13 @@ const HomeScreen = () => {
           type: 'Polygon',
           coordinates: [hexagon]
         }}
-        options={{fillColor: '#ff0000',
-        fillOpacity: 0.5
+        options={{fillColor: color,
+        fillOpacity: 0.1
         }}
       />
     );
   });
-
+  
 return (
     <SafeAreaView style={homeStyle.page}>
       <Title>Map</Title>
@@ -112,7 +124,15 @@ return (
           modules={['geoObject.addon.balloon']}
         >
           {hexagons}
-          {hexagonsPoints}
+          {squares}
+          <Polyline
+              geometry={polylineCoordinates}
+              options={{
+                strokeColor: '#000000',
+                strokeWidth: 3,
+                strokeOpacity: 0.5,
+              }}
+            />
         </Map>
       </YMaps>
       <Modal
