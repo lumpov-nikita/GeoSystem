@@ -1,54 +1,259 @@
 import React, { useState } from 'react';
-import { YMaps, Map, Polygon, Placemark } from '@pbe/react-yandex-maps';
-import { SafeAreaView, TouchableOpacity, Text, View } from 'react-native';
+import { YMaps, Map, Polygon, Placemark, Polyline } from '@pbe/react-yandex-maps';
+import { SafeAreaView, TouchableOpacity, Text, View, Modal, TextInput, Picker, TouchableHighlight } from 'react-native';
 import { Title } from 'react-native-paper';
 import { homeStyle } from './home.style';
 
 const HomeScreen = () => {
-  const [isSelectingArea, setIsSelectingArea] = useState(false);
-  const [selectedPoints, setSelectedPoints] = useState([]);
-  const [isSqueresVisible, setSqueresVisible] = useState(false);
-  const [selectedPointIndex, setSelectedPointIndex] = useState(0);
-  const [squares, setSquares] = useState([]);
-  const [hint, setHint] = useState(""); 
+  const [isSelectingArea, setIsSelectingArea] = useState(false);          // Включен выбор территории 
+  const [selectedPoints, setSelectedPoints] = useState([]);               // Точки выбранной территории     
+  const [isVisibleHint, setIsVisibleHint] = useState(false);              // Отображение подсказки
+  const [selectedPointIndex, setSelectedPointIndex] = useState(0);        // Имя точки для выбора территории
+  const [hexagons, setHexagons] = useState([]);                           // Сетка шестиугольников
+  const [hint, setHint] = useState("");                                   // Текст подсказки
+  const [isModalVisible, setIsModalVisible] = useState(false);            // Состояние видимости модального окна
+  const [modalContent, setModalContent] = useState("");                   // Текст для модального окна
+  const [name, setName] = useState('');                                   // Для создание точки поле Имя
+  const [coordinates, setCoordinates] = useState([]);                     // Для создание точки поле Координаты точки
+  const [type, setType] = useState('');                                   // Для создание точки поле Тип
+  const [parentPoint, setParentPoint] = useState("");                     // Выбранная прошлая точка
+  const [showPoints, setShowPoints] = useState(false);                    // Отображение вью с точками
+  const [pointsOnMap, setPointsOnMap] = useState([]);                     // Вышки и повороты на карте
+  const [isSelectedPoint, setIsSelectedPoint] = useState(false);          // Включен выбор точек вышки и повороты
+  const [selectedPoint, setSelectedPoint] = useState(null);
+
+  const PointModal = () => {
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => handleCloseModelHexagon()}>
+        <View style={homeStyle.modalContainer}>
+          <View style={homeStyle.subModalContainer}>
+            <Text style={homeStyle.modalTitle}>{modalContent}</Text>
+            <TextInput
+              placeholder="Имя точки"
+              style={homeStyle.modalInput}
+              value={name}
+              onChangeText={(text) => setName(text)}
+            />
+            <Text style={homeStyle.modalTitle}>Предыдущая точка</Text>
+            <Picker
+                selectedValue={parentPoint}
+                style={{ marginBottom: 10 }}
+                itemStyle={{ fontSize: 14 }}
+                onValueChange={handleParentChange}
+              >
+                <Picker.Item label="" value="" />
+                {pointsOnMap.map((point, index) => (
+                  <Picker.Item
+                    key={index}
+                    label={point.name}
+                    value={point.name}
+                  />
+                ))}
+            </Picker>
+            <Text style={homeStyle.modalTitle}>Тип точки</Text>
+            <Picker
+              selectedValue={type}
+              onValueChange={handleTypeChange}
+              style={{ marginBottom: 10 }}
+              itemStyle={{ fontSize: 14 }}
+            >
+              <Picker.Item label="" value="" />
+              <Picker.Item label="Вышка" value="Вышка" />
+              <Picker.Item label="Поворот" value="Поворот" />
+            </Picker>
+            <TouchableOpacity style={homeStyle.modalButton} onPress={() => handleCreatePoint()}>
+              <Text style={homeStyle.buttonText}>Сохранить</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={homeStyle.buttonCancel} onPress={() => handleCloseModelHexagon()}>
+              <Text style={homeStyle.modalButtonText}>Отмена</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  const handleShowMenuPoint = () => {
+    if(!selectedPoint)
+      return;
+    
+    setName(selectedPoint.name);
+    setParentPoint(selectedPoint.parentPoint);
+    setType(selectedPoint.type);
+    setCoordinates(selectedPoint.coordinates);
+    setIsModalVisible(true);
+  };
+
+  const handleHidePoints = () => {
+    setSelectedPoint(null);
+    setShowPoints(false);
+    setIsSelectedPoint(false);
+    setPointsOnMap(prevPoints => prevPoints.map(p => ({
+      ...p,
+      color: "#29D606",
+      selected: false,
+    })))  
+  };
+
+  const handlePointClick = (event, point) => {
+    setIsSelectedPoint(true);
+    setSelectedPoint(point);
+    setPointsOnMap(prevPoints => prevPoints.map(p => ({
+      ...p,
+      color: point.name == p.name ? "#FF0000" : "#29D606",
+      selected: point.name == p.name,
+    })))    
+  };
+
+  const handleTypeChange = (itemValue) => {
+    setType(itemValue);
+  };
+
+  const handleParentChange = (itemValue) => {
+    setParentPoint(itemValue);
+  };
+
+  const handleCreatePoint = () => {
+    if (!name) {
+      alert('Не заполнено поле "Имя точки"!');
+      return;
+    }
+    
+    if (!type) {
+      alert('Не выбран "Тип"!');
+      return;
+    }
+
+    const newPoint = {
+      color: "#29D606",
+      name: name,
+      type: type,
+      parentPoint: pointsOnMap.find(point => point.name === parentPoint) || null,
+      coordinates: coordinates,
+      selected: false,
+    };
+
+    setPointsOnMap([...pointsOnMap, newPoint]);
+
+    setName('');
+    setType('');
+    setParentPoint('');
+    setCoordinates([]);
+    handleCloseModelHexagon();
+  };
+
+  // цвета нельзя выписать в константы, почему-то API не корректно работает с переменными 
+
+  const blue  = "#0079C2";
+  const green = "#29D606";
+  const gray  = "#C4C3C4";
+  const red  = "#FF0000";
+
+  const handleCloseModelHexagon = () => {
+    setName('');
+    setParentPoint('');
+    setType('');
+    setCoordinates([]);
+    setIsModalVisible(false);
+    setIsSelectingArea(false);
+    setSelectedPoints([]);
+  };
+
+  const handleHexagonClick = (event, hexagon) => {
+    const clickedPoint = event.get('coords');
+    setModalContent(`Координаты: (${clickedPoint[0]}, ${clickedPoint[1]})`);
+    setCoordinates(clickedPoint);
+    setSelectedPoints([
+      ...selectedPoints,
+      {
+        coordinates: clickedPoint,
+        name: `Point ${selectedPoints.length + 1}`,
+        color: "#0079C2",
+      },]);
+    setIsSelectingArea(true); 
+    setIsModalVisible(true);  
+  };
 
   const handleSquareMouseEnter = (event, square) => {
     const squareCoordinates = square.geometry.coordinates[0];
-
-    setHint(squareCoordinates.join(", ")); 
+    square.options = {
+      ...square.options,
+      strokeColor: '#29D606',
+      strokeWidth: 2,
+      strokeOpacity: 0,
+    };
+    
+    setHint(squareCoordinates.join(",\n")); 
+  };  
+  
+  const handleSquareMouseLeave= (event, square) => {
+    const squareCoordinates = square.geometry.coordinates[0];
+    square.options = {
+      ...square.options,
+      strokeColor: '#C4C3C4',
+      strokeWidth: 1.5,
+      strokeOpacity: 0.5,
+    };
+    
+    setHint(""); 
   };  
 
-  const handleGenerateData = () => {
-    const points = selectedPoints.map(point => point.coordinates);
+  const hexagonCoordinates = (center, radius, scale) => {
+    const coords = [];
   
-    if (points.length !== 4) {
-      return;
+    let angle = 30; // Start angle
+    while (angle <= 360) {
+      const x = center[0] + scale * radius * Math.cos((Math.PI / 180) * angle);
+      const y = center[1] + radius * Math.sin((Math.PI / 180) * angle);
+      coords.push([x, y]);
+      angle += 60; // Increment angle by 60 degrees for each point
     }
   
-    const minX = Math.min(...points.map(point => point[0]));
+    return coords;
+  };
+  
+  const handleGenerateData = () => {
+    const points = selectedPoints.map(point => point.coordinates);
+
+    if (points.length !== 4) {
+        return;
+    }
+
+    let minX = Math.min(...points.map(point => point[0]));
     const minY = Math.min(...points.map(point => point[1]));
     const maxX = Math.max(...points.map(point => point[0]));
     const maxY = Math.max(...points.map(point => point[1]));
-  
-    const squares = [];
-  
-    for (let x = minX; x < maxX; x += 0.01) {
-      for (let y = minY; y < maxY; y += 0.01) {
-        squares.push([
-          [x, y],
-          [x + 0.01, y],
-          [x + 0.01, y + 0.01],
-          [x, y + 0.01],
-        ]);
+     
+    const hexagons = [];
+    let stepY = minY;
+    let y = 0;
+    while (maxY>stepY){
+      stepY = stepY + 0.015;
+      let stepX = minX;
+      let i = 1;
+      y++;
+      if(y % 2 === 0)
+        minX = minX + 0.0052;
+      else if(y % 2 != 0 && y != 1)
+        minX = minX - 0.0052;
+
+      while (maxX>stepX){
+        stepX = minX + i * 0.0104;
+        const hexagonOffsetX = hexagonCoordinates([stepX, stepY], 0.01, 0.6);
+        hexagons.push(hexagonOffsetX);
+        i++;
       }
     }
-    
+
     handleReset();
-    setSqueresVisible(true);
-    setSelectedPoints([]);
-    setSelectedPointIndex(0);
-    setSquaresOnMap(squares);
+    setIsVisibleHint(true);
+    setSquaresOnMap(hexagons);
   };
+
   
   const setSquaresOnMap = (squares) => {
     const mapSquares = squares.map(square => ({
@@ -60,18 +265,19 @@ const HomeScreen = () => {
         fillColor: '#C4C3C4',
         fillOpacity: 0.01,
         strokeColor: '#C4C3C4',
-        strokeWidth: 1,
+        strokeWidth: 1.5,
+        strokeOpacity: 0.5,
       },
     }));
   
-    setSquares(mapSquares);
+    setHexagons(mapSquares);
   };  
 
   const handleReset = () => {
     setIsSelectingArea(false);
     setSelectedPoints([]);
-    setSqueresVisible(false);
     setSelectedPointIndex(0);
+    setIsVisibleHint(false);
   };
   
   const handleMapClick = (event) => {
@@ -83,7 +289,7 @@ const HomeScreen = () => {
           {
             coordinates: point,
             name: `Point ${selectedPoints.length + 1}`,
-            color: "#0000FF",
+            color: "#0079C2",
           },
         ]);
         setSelectedPointIndex(selectedPoints.length + 1);
@@ -101,13 +307,28 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={homeStyle.page}>
        <View style={homeStyle.titleContainer}>
-        <Title style={homeStyle.title}>Map</Title>
-        <TouchableOpacity onPress={handleSelectArea} style={homeStyle.button}>
-        <Text style={homeStyle.buttonText}>Выбрать область</Text>
-      </TouchableOpacity>
-      </View>
-
-
+          <Title style={homeStyle.title}>Map</Title>
+          <View style={homeStyle.buttonContainer}>
+            <TouchableOpacity onPress={handleSelectArea} style={homeStyle.button}>
+              <Text style={homeStyle.buttonText}>Выбрать область</Text>
+            </TouchableOpacity>
+            {pointsOnMap.length > 0 && !showPoints && (
+            <TouchableOpacity style={homeStyle.button} onPress={() => setShowPoints(true)}>
+              <Text style={homeStyle.buttonText}>Показать список точек</Text>
+            </TouchableOpacity>
+            )}
+            {pointsOnMap.length > 0 && showPoints && (
+            <TouchableOpacity style={homeStyle.button} onPress={handleHidePoints}>
+              <Text style={homeStyle.buttonText}>Скрыть список точек</Text>
+            </TouchableOpacity>
+            )}
+            {pointsOnMap.length > 0 && isSelectedPoint && (
+            <TouchableOpacity style={homeStyle.button} onPress={handleShowMenuPoint}>
+              <Text style={homeStyle.buttonText}>Изменить точку</Text>
+            </TouchableOpacity>
+            )}
+          </View>
+        </View>
       <YMaps 
         enterprise
         query={{
@@ -127,16 +348,16 @@ const HomeScreen = () => {
         >
           {isSelectingArea && (
             <View style={homeStyle.hint}>
-            {selectedPoints.length === 0 && (
+            {!isModalVisible && selectedPoints.length === 0 && (
               <Text style={homeStyle.hintText}>Выберите первую точку</Text>
             )}
-            {selectedPoints.length >= 1 && selectedPoints.length < 4 && (
+            {!isModalVisible && selectedPoints.length >= 1 && selectedPoints.length < 4 && (
               <Text style={homeStyle.hintText}>Выберите следующую точку</Text>
             )}
-            {selectedPoints.length === 4 && (
+            {!isModalVisible && selectedPoints.length === 4 && (
               <>
                 <TouchableOpacity onPress={handleGenerateData} style={homeStyle.button}>
-                  <Text style={homeStyle.buttonText}>Сгенерируйте данные</Text>
+                  <Text style={homeStyle.buttonText}>Получить данные о территории</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleReset} style={homeStyle.button}>
                   <Text style={homeStyle.buttonText}>Сбросить</Text>
@@ -145,10 +366,30 @@ const HomeScreen = () => {
             )}
           </View>
           )}
-          {isSqueresVisible && (
+          {isVisibleHint && (
             <View style={homeStyle.hint}>
               <Text style={homeStyle.hintText}>{hint}</Text>
-          </View>
+            </View>
+          )}
+          {showPoints && (
+            <View style={homeStyle.pointsContainer}>
+              <Title style={homeStyle.hintText}>Вышки:</Title>
+              <View style={homeStyle.listPoints}>
+                {pointsOnMap.map((point, index) => (
+                  <TouchableHighlight
+                  key={index}
+                  onPress={(event) => handlePointClick(event, point)}
+                >
+                  <Text 
+                    style={point.selected ? homeStyle.hintSelectedText : homeStyle.hintText} 
+                    key={index}
+                    >
+                      {point.name} 
+                  </Text>
+                </TouchableHighlight>
+                ))}
+              </View>
+            </View>
           )}
           <Polygon 
             key='0000'
@@ -157,16 +398,19 @@ const HomeScreen = () => {
               coordinates: [selectedPoints.map(point => point.coordinates)]
             }}
             options={{
-              fillColor: "#0000FF",
+              fillColor: "#0079C2",
               fillOpacity: 0.1
             }}
           />
-          {squares.map((square, index) => (
+          {hexagons.map((hexagon, index) => (
             <Polygon 
               key={index}
-              geometry={square.geometry}
-              options={square.options}
-              onMouseEnter={(event) => handleSquareMouseEnter(event, square)}
+              geometry={hexagon.geometry}
+              options={hexagon.options}
+              onMouseEnter={(event) => handleSquareMouseEnter(event, hexagon)}
+              onMouseLeave={(event) => handleSquareMouseLeave(event, hexagon)}
+              onClick={event => handleHexagonClick(event, hexagon)}
+
             />
           ))}
           {selectedPoints.map((point, index) => (
@@ -181,9 +425,42 @@ const HomeScreen = () => {
               }}
             />
           ))}
+          {pointsOnMap.map((point, index) => {
+            if ((point.type == "Вышка") 
+            || (point.type == "Поворот" && !point.parentPoint)
+            || (point.selected)) {
+              return (
+              <Placemark
+              key={point.name}
+              geometry={point.coordinates}
+              options={{
+                iconColor: point.color,
+              }}
+              properties={{
+                balloonContent: {index},
+              }}
+              />
+            )}
+          })}
+          {pointsOnMap.map((point, index) => {
+            if (point.parentPoint) {
+              return (
+                <Polyline
+              geometry={[point.parentPoint.coordinates, point.coordinates]}
+              options={{
+                strokeColor: '#FF0000',
+                strokeWidth: 3,
+                strokeOpacity: 0.5,
+              }}
+              />
+
+              );
+            }
+          })}
+
         </Map>
       </YMaps>
-      
+      <PointModal />
     </SafeAreaView>
   );
 };
