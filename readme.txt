@@ -1,5 +1,5 @@
 Скачать и установить Node JS версии 18.12.1                        
-https://nodejs.org/en
+https://nodejs.org/en/blog/release/v18.12.1
 В Visual Studio Code открыть проект
 В терминале перейти в папку FrontEnd             - ввести в терминале cd FrontEnd
 Установить модули приложения                     - ввести в терминале npm Install
